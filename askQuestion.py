@@ -3,7 +3,7 @@ import json
 from pinecone import Pinecone, ServerlessSpec
 from dotenv import load_dotenv
 load_dotenv()
-
+import traceback
 from openai import OpenAI
 openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -11,7 +11,6 @@ openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")  # Name of your existing Pinecone index
-
 
 # Initialize APIs
 pinecone = Pinecone(api_key=PINECONE_API_KEY)
@@ -30,8 +29,57 @@ def ask_question(user_input):
     query_response = index.query(vector=vector, top_k=5, include_metadata=True)
     return query_response
 
-def checkRelevance(chunk, user_input):
+def fetch_chunk_from_pinecone(chunk_id):
+    index = pinecone.Index(INDEX_NAME)
+    query_response = index.fetch(ids=[chunk_id])
+    chunk = index.query(vector=query_response.vectors[str(chunk_id)].values, top_k=1, include_metadata=True)
+    return chunk.matches[0]
+
+
+def checkChunk(chunk, user_input, direction, chunk_snippet, visited_chunks):
+    chunk_id = int(chunk['id'])
+    if chunk_id in visited_chunks:
+        return chunk_snippet
+    else:
+        visited_chunks.add(chunk_id)
+
+
+    response = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a text analyzer."},
+            {"role": "user", "content": f"This is a chunk extracted from a document: {chunk['metadata']['text']}. Does this chunk provide information relevant to understand the context better of the question: {user_input}? Only answer with a binary score of '1' or '0', remember to only answer with these values."}
+        ],
+        max_tokens=50
+    )
+    if response.choices[0].message.content == "1":
+        print("Chunk is relevant", chunk_id)
+        if direction == "upper":
+            next_chunk = fetch_chunk_from_pinecone(str(chunk_id - 1))
+            updated_snippet = next_chunk['metadata']['text'] + "\n\n" + chunk_snippet
+            chunk_snippet = updated_snippet
+            chunk_snippet = checkChunk(next_chunk, user_input, "upper", chunk_snippet, visited_chunks)
+        elif direction == "lower":
+            prev_chunk = fetch_chunk_from_pinecone(str(chunk_id + 1))
+            updated_snippet = chunk_snippet + "\n\n" + prev_chunk['metadata']['text']
+            chunk_snippet = updated_snippet
+            chunk_snippet = checkChunk(prev_chunk, user_input, "lower", chunk_snippet, visited_chunks)
+    else:
+        return chunk_snippet
+
+    return chunk_snippet
+
+def lookAroundChunk(chunk, user_input, visited_chunks):
+    chunk_id = int(chunk['id'])
+    chunk_snippet = chunk['metadata']['text']
+    chunk_snippet = checkChunk(fetch_chunk_from_pinecone(chunk_id + 1), user_input, "upper", chunk_snippet, visited_chunks)
+    chunk_snippet = checkChunk(fetch_chunk_from_pinecone(chunk_id - 1), user_input, "lower", chunk_snippet, visited_chunks)
+    return chunk_snippet
+
+
+def checkRelevance(chunk, chunks, user_input, visited_chunks):
     # Check if the chunk is relevant
+    
     response = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -42,31 +90,30 @@ def checkRelevance(chunk, user_input):
     )
     print(response.choices[0].message.content)
     if(response.choices[0].message.content == "1"):
-        print(chunk['metadata']['text'])
-    return response.choices[0].message.content == "1"
+        return lookAroundChunk(chunk, user_input, visited_chunks)
+    return ""
 
-def genereate_response(chunks, user_input):
-    chunk_snippet = ""
-    for chunk in chunks:
-        chunk_snippet += chunk['metadata']['text'] + "\n\n"
+def genereate_response(context, user_input):
+
 
     response = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you do not know the answer, say that you don't have information on that topic."},
-            {"role": "user", "content": f"Here are the chunks extracted from the document that are relevant to the question: {user_input}. Please provide a an of the relevant information. Only answer the question based on this information: {chunk_snippet}"}
+            {"role": "user", "content": f"Here are the chunks extracted from the document that are relevant to the question: {user_input}. Please provide a an of the relevant information. Only answer the question based on this information: {context}"}
         ],
         max_tokens=200
     )
     return response.choices[0].message.content
 
 def filter_chunks(chunks, user_input):
-    relevant_chunks = []
+    visited_chunks = set()
+    context = ""
     for chunk in chunks:
-        if(checkRelevance(chunk, user_input)):
-            relevant_chunks.append(chunk)
-
-    return relevant_chunks
+        new_chunk = chunk
+        context += checkRelevance(chunk, chunks, user_input, visited_chunks)
+        
+    return context
 
 
 def main():
@@ -87,14 +134,15 @@ def main():
             else:
                 result = result.__dict__
             result = filter_chunks(result['matches'], user_input)
+            print("Found the following information:")
+            print(result)
             answer = genereate_response(result, user_input)
+            print("Answer: ")
             print(answer)
             #checkIfFactual(answer, result)
-            print("Found in these documents:")
-            for chunk in result:
-                print(chunk['metadata']['source'])
         except Exception as e:
             print(f"Error: {e}")
+            traceback.print_exc()
 
 if __name__ == '__main__':
     main()

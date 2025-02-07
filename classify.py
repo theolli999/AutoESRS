@@ -70,7 +70,8 @@ def embed_sentences(sentences):
 
 def send_to_pinecone(embeddings, sentences, source, id):
     index = pc.Index("test")  # Replace "your-index-name" with your actual index name
-    vectors = [{"id": str(id + i), "values": embedding, "metadata": {"text": sentence, "source": source}} for i, (embedding, sentence) in enumerate(zip(embeddings, sentences))]
+    newId = str(id + 1)
+    vectors = [{"id": newId, "values": embedding, "metadata": {"text": sentence, "source": source, "id": newId }} for i, (embedding, sentence) in enumerate(zip(embeddings, sentences))]
     index.upsert(vectors) 
     return vectors[-1]["id"]
 
