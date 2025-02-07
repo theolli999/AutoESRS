@@ -1,2 +1,4 @@
 .env
 /documents
+.DS_Store
+

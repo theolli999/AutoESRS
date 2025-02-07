@@ -11,7 +11,7 @@ openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")  # Name of your existing Pinecone index
-
+ 
 # Initialize APIs
 pinecone = Pinecone(api_key=PINECONE_API_KEY)
 
