@@ -1,4 +1,4 @@
-import pineconeUtils.py
+import pineconeUtils
 from pdfminer.high_level import extract_text
 import os
 

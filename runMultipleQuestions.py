@@ -3,6 +3,7 @@ import json
 from pinecone import Pinecone, ServerlessSpec
 import askQuestion
 from dotenv import load_dotenv
+import pandas as pd
 load_dotenv()
 
 pinecone = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
@@ -45,6 +46,11 @@ def checkSources(answer, question, sources):
 
     return response.choices[0].message.content
 
+def import_questions_from_csv(filepath):
+    df = pd.read_csv(filepath)
+    questions = df.iloc[:, 1].tolist()  # Assuming the second column contains the questions
+    return questions
+
 def run_multiple_questions(questions):
     results = {}
     for question in questions:
@@ -64,14 +70,12 @@ def run_multiple_questions(questions):
     return results
 
 if __name__ == '__main__':
-    questions = [
-        "Describe the companys policy when it comes to having a dog at work",
-        "Do I need to wear a helmet when riding my bike while at work?"
-    ]
+    questions = import_questions_from_csv("./data.csv")
+    print(questions)
     results = run_multiple_questions(questions)
     for question, result in results.items():
         if 'error' in result:
             print(f"Question: {question}\nError: {result['error']}\n")
         else:
             print(f"Question: {question}\nAnswer: {result['answer']}\n")
-            print("Sources Review: ", result['sourcesReview'])
+            #print("Sources Review: ", result['sourcesReview'])

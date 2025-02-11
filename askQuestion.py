@@ -91,6 +91,7 @@ def checkRelevance(chunk, chunks, user_input, visited_chunks):
     print(response.choices[0].message.content)
     if(response.choices[0].message.content == "1"):
         return lookAroundChunk(chunk, user_input, visited_chunks)
+        #return chunk['metadata']['text']
     return ""
 
 def genereate_response(context, user_input):
