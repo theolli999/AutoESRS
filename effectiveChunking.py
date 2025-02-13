@@ -5,6 +5,9 @@ from numpy.linalg import norm
 from pdfminer.high_level import extract_text
 import nltk
 from nltk.tokenize import sent_tokenize
+import db
+from openai import OpenAI
+openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def calculate_similarity(vec1, vec2):
     vec1 = np.ravel(vec1)
@@ -13,7 +16,19 @@ def calculate_similarity(vec1, vec2):
         return 0.0
     return np.dot(vec1, vec2) / (norm(vec1) * norm(vec2))
 
-    
+def generateDescription(sections, filename):
+    text = ""
+    for section in sections:
+        text += section + "\n"
+    description = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a text analyzer."},
+            {"role": "user", "content": f"This is the document: {filename}. Generate a description of what the document is about {text}"}
+        ],
+        max_tokens=200
+    )
+    return description.choices[0].message.content
         
 
 def embed_sentences(filepath):
@@ -47,10 +62,11 @@ if __name__ == "__main__":
         if filename.endswith('.pdf'):
             filepath = os.path.join(directory, filename)
             chunks = embed_sentences(filepath)
-            embeddings = pineconeUtils.embed_sentences(chunks)         
-            id = int(pineconeUtils.send_to_pinecone("test2", embeddings, chunks, filename, id))
-            for chunk in chunks:
-                print(chunk)
-                print("---------------------------------------------")
+            description = generateDescription(chunks, filename)
+            print("Description: ", description)
+            db.addData('data.db', filename, description)
+            #embeddings = pineconeUtils.embed_sentences(chunks)         
+            #id = int(pineconeUtils.send_to_pinecone("test2", embeddings, chunks, filename, id))
+  
 
     
