@@ -35,7 +35,7 @@ if __name__ == "__main__":
             filepath = os.path.join(directory, filename)
             sections, line_numbers = extract_paragraphs_with_pdfminer(filepath)
             embeddings = pineconeUtils.embed_sentences(sections)
-            index = 'test'
+            index = 'test2'
             id = int(pineconeUtils.send_to_pinecone(index, embeddings, sections, filename, id))
             for i in range(len(sections)):
                 print(f"File: {filename}")

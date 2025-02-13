@@ -20,7 +20,7 @@ def findUniqueSources(chunks):
 
 def checkSources(answer, question, sources):
     sourcesAndAnswers = {}
-    index = pinecone.Index("test")
+    index = pinecone.Index("test2")
 
     # Generera embedding för svaret
     embedding_response = openai.embeddings.create(
@@ -70,7 +70,16 @@ def run_multiple_questions(questions):
     return results
 
 if __name__ == '__main__':
-    questions = import_questions_from_csv("./data.csv")
+    #questions = import_questions_from_csv("./data.csv")
+    questions = [
+        "Can I bring my dog to work?",
+        "Does the company have a workplace accident prevention policy or management system?", 
+        "Choose the areas that are covered in the policy for elimination of discrimination and diversity:", 
+        "Does the company have policies that explicitly address trafficking in human right beings, forced or compulsory labour and child labour?",
+        "Does the company have policies with regard to its own workers, that are aligned with internationally recognised standards including UN Guiding Principles on Business and Human Rights?"]
+    
+
+    questions = ["Does the company have a transition plan?"]
     print(questions)
     results = run_multiple_questions(questions)
     for question, result in results.items():

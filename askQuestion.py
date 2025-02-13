@@ -53,7 +53,7 @@ def checkChunk(chunk, user_input, direction, chunk_snippet, visited_chunks):
         max_tokens=50
     )
     if response.choices[0].message.content == "1":
-        print("Chunk is relevant", chunk_id)
+        print("Found surrounding chunk:", chunk_id)
         if direction == "upper":
             next_chunk = fetch_chunk_from_pinecone(str(chunk_id - 1))
             updated_snippet = next_chunk['metadata']['text'] + "\n\n" + chunk_snippet
@@ -88,7 +88,11 @@ def checkRelevance(chunk, chunks, user_input, visited_chunks):
         ],
         max_tokens=50
     )
-    print(response.choices[0].message.content)
+    if(response.choices[0].message.content == "0"):
+        print("Chunk is not relevant")
+    else:
+        print("Chunk is relevant: " + chunk['metadata']['source'])
+        #print(chunk['metadata']['text'] + "\n\n")
     if(response.choices[0].message.content == "1"):
         return lookAroundChunk(chunk, user_input, visited_chunks)
         #return chunk['metadata']['text']
@@ -135,10 +139,8 @@ def main():
             else:
                 result = result.__dict__
             result = filter_chunks(result['matches'], user_input)
-            print("Found the following information:")
-            print(result)
             answer = genereate_response(result, user_input)
-            print("Answer: ")
+            print("\n\n Answer: ")
             print(answer)
             #checkIfFactual(answer, result)
         except Exception as e:
