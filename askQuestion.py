@@ -1,5 +1,6 @@
 import os
 import json
+import traceback
 from pinecone import Pinecone, ServerlessSpec
 from dotenv import load_dotenv
 load_dotenv()
@@ -77,7 +78,7 @@ def lookAroundChunk(chunk, user_input, visited_chunks):
     return chunk_snippet
 
 
-def checkRelevance(chunk, chunks, user_input, visited_chunks):
+def checkRelevance(chunk, chunks, user_input, visited_chunks, sources):
     # Check if the chunk is relevant
     
     response = openai.chat.completions.create(
@@ -93,14 +94,13 @@ def checkRelevance(chunk, chunks, user_input, visited_chunks):
     else:
         print("Chunk is relevant: " + chunk['metadata']['source'])
         #print(chunk['metadata']['text'] + "\n\n")
-    if(response.choices[0].message.content == "1"):
+    #if(response.choices[0].message.content == "1"):
+        sources.append(chunk['metadata']['source']) 
         return lookAroundChunk(chunk, user_input, visited_chunks)
         #return chunk['metadata']['text']
     return ""
 
-def genereate_response(context, user_input):
-
-
+def generate_response(context, user_input):
     response = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -114,11 +114,13 @@ def genereate_response(context, user_input):
 def filter_chunks(chunks, user_input):
     visited_chunks = set()
     context = ""
+    sources = []
     for chunk in chunks:
-        new_chunk = chunk
-        context += checkRelevance(chunk, chunks, user_input, visited_chunks)
-        
-    return context
+        #new_chunk = chunk
+        context += checkRelevance(chunk, chunks, user_input, visited_chunks, sources)
+        #sources.append(chunk['metadata']['source'])
+    
+    return context, list(set(sources))
 
 
 def main():
@@ -138,10 +140,16 @@ def main():
                 result = result.to_dict()
             else:
                 result = result.__dict__
-            result = filter_chunks(result['matches'], user_input)
-            answer = genereate_response(result, user_input)
-            print("\n\n Answer: ")
-            print(answer)
+            result, sources = filter_chunks(result['matches'], user_input)
+            answer = generate_response(result, user_input)
+
+            output = {"Question": user_input, "Answer": answer, "Source(s)": sources}
+
+            print("\n\nJSON Output:")
+            print(json.dumps(output, indent=4))
+
+            #print("\n\n Answer: ")
+            #print(answer)
             #checkIfFactual(answer, result)
         except Exception as e:
             print(f"Error: {e}")
