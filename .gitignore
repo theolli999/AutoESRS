@@ -2,4 +2,4 @@
 /documents
 /document_archive
 .DS_Store
-
+/my-react-app/node_modules

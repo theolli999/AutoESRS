@@ -61,10 +61,11 @@ def run_multiple_questions(questions):
             else:
                 result = result.__dict__
             sources = findUniqueSources(result['matches'])
-            filtered_chunks = askQuestion.filter_chunks(result['matches'], question)
-            answer = askQuestion.genereate_response(filtered_chunks, question)
+            filtered_chunks, providedSources = askQuestion.filter_chunks(result['matches'], question)
+            print("Provided sources: ", providedSources)
+            answer = askQuestion.generate_response(filtered_chunks, question)
             sourcesReview = checkSources(answer, question, sources)
-            results[question] = {'answer': answer, 'sourcesReview': sourcesReview}
+            results[question] = {'answer': answer, 'sourcesReview': sourcesReview, "sources": providedSources}
         except Exception as e:
             results[question] = {'error': str(e)}
     return results

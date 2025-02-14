@@ -120,11 +120,10 @@ def checkRelevance(chunk, chunks, user_input, visited_chunks, sources):
         newChunk = rewriteChunk(chunk, user_input)
         #print(chunk['metadata']['text'] + "\n\n")
         sources.append(chunk['metadata']['source']) 
-        print("New chunk: ", newChunk)
-        print("Old chunk: ", chunk['metadata']['text'])
+        print("Found this information: ", chunk['metadata']['text'], "\n\n")
         #return lookAroundChunk(chunk, user_input, visited_chunks)
-        return newChunk
-    return ""
+        return newChunk, chunk['metadata']['source']
+    return "", None
 
 def generate_response(context, user_input):
     response = openai.chat.completions.create(
@@ -142,9 +141,10 @@ def filter_chunks(chunks, user_input):
     context = ""
     sources = []
     for chunk in chunks:
-        #new_chunk = chunk
-        context += checkRelevance(chunk, chunks, user_input, visited_chunks, sources)
-        #sources.append(chunk['metadata']['source'])
+        text, source = checkRelevance(chunk, chunks, user_input, visited_chunks, sources)
+        context += text
+        if source:
+            sources.append(source)
     
     return context, list(set(sources))
 
