@@ -7,6 +7,7 @@ load_dotenv()
 import traceback
 from openai import OpenAI
 openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+import db
 
 # Load API keys and configuration from environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -16,13 +17,24 @@ INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")  # Name of your existing Pinecone 
 # Initialize APIs
 pinecone = Pinecone(api_key=PINECONE_API_KEY)
 
+def rewriteQuestion(user_input):
+
+    response = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a text analyzer."},
+            {"role": "user", "content": f"Rewrite the question: {user_input}"}
+        ],
+        max_tokens=50
+    )
+    print("Rewritten question: ", response.choices[0].message.content)
+
 def ask_question(user_input):
     # Generate embedding for the user input
     embedding_response = openai.embeddings.create(
         input=user_input,
         model="text-embedding-ada-002"
     )
-    # Use attribute access instead of subscription
     vector = embedding_response.data[0].embedding
 
     # Perform similarity search in the provided Pinecone index
@@ -78,6 +90,18 @@ def lookAroundChunk(chunk, user_input, visited_chunks):
     return chunk_snippet
 
 
+def rewriteChunk(chunk, user_input):
+    description = db.getDescription('data.db', chunk['metadata']['source'])
+    newChunk = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a text analyzer."},
+            {"role": "user", "content": f"This is a chunk extracted from a document: {chunk['metadata']['text']}. This is the description of the source: {description}. Rewrite the chunk to provide information relevant to the question: {user_input}"}
+        ],
+        max_tokens=200
+    )
+    return newChunk.choices[0].message.content
+
 def checkRelevance(chunk, chunks, user_input, visited_chunks, sources):
     # Check if the chunk is relevant
     
@@ -93,12 +117,13 @@ def checkRelevance(chunk, chunks, user_input, visited_chunks, sources):
         print("Chunk is not relevant")
     else:
         print("Chunk is relevant: " + chunk['metadata']['source'])
+        newChunk = rewriteChunk(chunk, user_input)
         #print(chunk['metadata']['text'] + "\n\n")
-    #if(response.choices[0].message.content == "1"):
         sources.append(chunk['metadata']['source']) 
-        return lookAroundChunk(chunk, user_input, visited_chunks)
-        #return chunk['metadata']['text']
-    return ""
+        print("Found this information: ", chunk['metadata']['text'], "\n\n")
+        #return lookAroundChunk(chunk, user_input, visited_chunks)
+        return newChunk, chunk['metadata']['source']
+    return "", None
 
 def generate_response(context, user_input):
     response = openai.chat.completions.create(
@@ -116,9 +141,10 @@ def filter_chunks(chunks, user_input):
     context = ""
     sources = []
     for chunk in chunks:
-        #new_chunk = chunk
-        context += checkRelevance(chunk, chunks, user_input, visited_chunks, sources)
-        #sources.append(chunk['metadata']['source'])
+        text, source = checkRelevance(chunk, chunks, user_input, visited_chunks, sources)
+        context += text
+        if source:
+            sources.append(source)
     
     return context, list(set(sources))
 
