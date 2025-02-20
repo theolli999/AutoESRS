@@ -23,7 +23,8 @@ def handle_question():
         result = result.__dict__
     filtered_chunks, providedSources = askQuestion.filter_chunks(result['matches'], question)
     answer = askQuestion.generate_response(filtered_chunks, question)
-    return jsonify({'answer': answer, 'sources': providedSources})
+    print(filtered_chunks)
+    return jsonify({'answer': answer, 'sources': providedSources, 'data': filtered_chunks})
 
 
 if __name__ == "__main__":

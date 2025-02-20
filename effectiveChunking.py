@@ -59,11 +59,11 @@ def embed_sentences(filepath, filename):
 
     if chunk:
         chunks.append(chunk)    
-    
-    description = generate_description(chunks, filename)
-    print("Description: ", description)
+    text = ""
+    for chunk in chunks:
+        text += chunk + "\n"
     # Ensure only one thread writes to the database at a time
-    db.addData('descriptions.db', filename, description)
+    db.addData('descriptions.db', filename, text)
     return chunks
 
 if __name__ == "__main__":
