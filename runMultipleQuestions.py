@@ -49,7 +49,11 @@ def findUniqueSources(chunks):
     return sources
 
 def checkSources(answer, question, sources):
+<<<<<<< HEAD
     index = pinecone.Index("pg")
+=======
+    index = pinecone.Index("test2")
+>>>>>>> af7305df1f9bb965ea6a441f6bb9683e9cecb402
 
     # Generera embedding för svaret
     embedding_response = openai.embeddings.create(

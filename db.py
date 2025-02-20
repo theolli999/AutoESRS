@@ -1,9 +1,12 @@
 import sqlite3
+import threading
+
+db_lock = threading.Lock()
 
 def create_database(db_name):
-    conn = sqlite3.connect(db_name)
+    conn = sqlite3.connect(db_name, timeout=30)
     cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS sourceDescriptions (
+    cursor.execute('''CREATE TABLE IF NOT EXISTS descriptions (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         source TEXT NOT NULL,
                         description TEXT NOT NULL)''')
@@ -11,32 +14,44 @@ def create_database(db_name):
     conn.close()
 
 def fetch_data(db_name, query):
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-    cursor.execute(query)
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with db_lock:
+        conn = sqlite3.connect(db_name, timeout=30)
+        cursor = conn.cursor()
+        cursor.execute(query)
+        results = cursor.fetchall()
+        conn.close()
+        return results
+
+def clear_data(db_name):
+    with db_lock:
+        conn = sqlite3.connect(db_name, timeout=30)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM descriptions")
+        conn.commit()
+        conn.close()
 
 def addData(db_name, source, description):
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO sourceDescriptions (source, description) VALUES (?, ?)", (source, description))
-    conn.commit()
-    conn.close()
+    print("About to add data to database")
+    with db_lock:
+        print("Adding data to database")
+        conn = sqlite3.connect(db_name, timeout=30)
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO descriptions (source, description) VALUES (?, ?)", (source, description))
+        conn.commit()
+        conn.close()
+        print("Commited")
 
 def getDescription(db_name, source):
-    print(source)
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-    cursor.execute("SELECT description FROM sourceDescriptions WHERE source=?", (source,))
-    result = cursor.fetchone()
-    conn.close()
-    return result
-
+    with db_lock:
+        conn = sqlite3.connect(db_name, timeout=30)
+        cursor = conn.cursor()
+        cursor.execute("SELECT description FROM descriptions WHERE source=?", (source,))
+        result = cursor.fetchone()
+        conn.close()
+        return result
 
 def main():
-    db_name = 'data.db'
+    db_name = 'descriptions.db'
     create_database(db_name)
     print("Database created and table setup completed.")
 

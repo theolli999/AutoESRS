@@ -8,6 +8,7 @@ import traceback
 from openai import OpenAI
 openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 import db
+import concurrent.futures
 
 # Load API keys and configuration from environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -39,7 +40,7 @@ def ask_question(user_input):
 
     # Perform similarity search in the provided Pinecone index
     index = pinecone.Index(INDEX_NAME)
-    query_response = index.query(vector=vector, top_k=5, include_metadata=True)
+    query_response = index.query(vector=vector, top_k=20, include_metadata=True)
     return query_response
 
 def fetch_chunk_from_pinecone(chunk_id):
@@ -90,39 +91,38 @@ def lookAroundChunk(chunk, user_input, visited_chunks):
     return chunk_snippet
 
 
-def rewriteChunk(chunk, user_input):
-    description = db.getDescription('data.db', chunk['metadata']['source'])
+def rewriteChunk(chunk):
+    description = db.getDescription('descriptions.db', chunk['metadata']['source'])
     newChunk = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You are a text analyzer."},
-            {"role": "user", "content": f"This is a chunk extracted from a document: {chunk['metadata']['text']}. This is the description of the source: {description}. Rewrite the chunk to provide information relevant to the question: {user_input}"}
+            {"role": "user", "content": f"This a description of the document: {description}. Here is the chunk we want to situate within the whole document: {chunk['metadata']['text']}. This is the description of the source: {description}. Please give a short succinct context to situate this chunk within the overall document for the purposes of improving search retrieval of the chunk. Answer only with the succinct context and nothing else. "}
         ],
         max_tokens=200
     )
     return newChunk.choices[0].message.content
 
-def checkRelevance(chunk, chunks, user_input, visited_chunks, sources):
-    # Check if the chunk is relevant
-    
+def checkRelevance(chunk, user_input, sources):
+    newChunk = rewriteChunk(chunk) +": " + chunk['metadata']['text']
+    chunk['metadata']['text'] = newChunk
     response = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You are a text analyzer."},
             {"role": "user", "content": f"This is a chunk extracted from a document: {chunk['metadata']['text']}. Is this chunk provide information relevant to the question: {user_input}? Only answer with a binary score of '1' or '0', remember to only answer with these values."}
         ],
-        max_tokens=50
+        max_tokens=200
     )
     if(response.choices[0].message.content == "0"):
         print("Chunk is not relevant")
     else:
         print("Chunk is relevant: " + chunk['metadata']['source'])
-        newChunk = rewriteChunk(chunk, user_input)
+        
         #print(chunk['metadata']['text'] + "\n\n")
         sources.append(chunk['metadata']['source']) 
-        print("Found this information: ", chunk['metadata']['text'], "\n\n")
         #return lookAroundChunk(chunk, user_input, visited_chunks)
-        return newChunk, chunk['metadata']['source']
+        return chunk
     return "", None
 
 def generate_response(context, user_input):
@@ -137,14 +137,19 @@ def generate_response(context, user_input):
     return response.choices[0].message.content
 
 def filter_chunks(chunks, user_input):
-    visited_chunks = set()
     context = ""
     sources = []
-    for chunk in chunks:
-        text, source = checkRelevance(chunk, chunks, user_input, visited_chunks, sources)
-        context += text
-        if source:
-            sources.append(source)
+    futures = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        for chunk in chunks:
+            futures.append(executor.submit(checkRelevance, chunk, user_input, sources))
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if not result or result == ("", None):
+                continue  # skip non-relevant chunks
+            context += result['metadata']['text'] + "\n\n"
+            if result['metadata']['source'] not in sources:
+                sources.append(result['metadata']['source'])
     
     return context, list(set(sources))
 
