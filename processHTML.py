@@ -1,4 +1,4 @@
-import pineconeUtils
+import utils
 from bs4 import BeautifulSoup
 import html5lib
 import os
@@ -22,9 +22,9 @@ if __name__ == "__main__":
         if filename.endswith('.html'):
             filepath = os.path.join(directory, filename)
             sections, line_numbers = extract_paragraphs_from_html(filepath)
-            embeddings = pineconeUtils.embed_sentences(sections)
+            embeddings = utils.embed_sentences(sections)
             index = 'esrs'
-            id = int(pineconeUtils.send_to_pinecone(index, embeddings, sections, filename, id))
+            id = int(utils.send_to_pinecone(index, embeddings, sections, filename, id))
             for i in range(len(sections)):
                 print(f"File: {filename}")
                 print(f"Section: {sections[i]}")

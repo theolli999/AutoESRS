@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import pandas as pd
 from ragas.dataset_schema import SingleTurnSample
 from ragas.metrics import Faithfulness
+import utils
 
 
 load_dotenv()
@@ -60,16 +61,10 @@ def checkSources(answer, question, sources):
         if query_response.matches:
             for match in query_response.matches:
                 combinedText += match.metadata['text'] + "\n\n"
-    response = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "Your job is to review the generated answer and see if there are any more information relevant to extract to answer the question. You are going to answer with a score of 1 to 10 where 1 is that all the information needs to be extracted and 10 is no extra context needs to be distracted. A 10 does not mean that the sentences match perfectly, but that all the relevant information from the provided document is included in the answer. Give a brief motivation to what is missing in the answer that could be provided from the origin source and what could be better. Do not reason about how the text could be written better, only judge if there are more information that needs to be extracted. Keep your answers short, especially of you give a high score."},
-            {"role": "user", "content": f"This is an generated answer: {answer} to the question: {question}. I want you to look into this information: {combinedText} and see if there are any more information relevant to extract to answer the question. You are going to answer with a score of 1 to 10 where 1 is that all the information needs to be extracted and 10 is no extra context needs to be distracted. A 10 does not mean that the sentences match perfectly, but that all the relevant information from the provided document is included in the answer. Give a brief motivation to what is missing in the answer that could be provided from the origin source and what could be better. Do not reason about how the text could be written better, only judge if there are more information that needs to be extracted"}
-        ],
-        max_tokens=200
-    )
 
-    return response.choices[0].message.content
+    system_prompt = "Your job is to review the generated answer and see if there are any more information relevant to extract to answer the question. You are going to answer with a score of 1 to 10 where 1 is that all the information needs to be extracted and 10 is no extra context needs to be distracted. A 10 does not mean that the sentences match perfectly, but that all the relevant information from the provided document is included in the answer. Give a brief motivation to what is missing in the answer that could be provided from the origin source and what could be better. Do not reason about how the text could be written better, only judge if there are more information that needs to be extracted. Keep your answers short, especially of you give a high score."            
+    user_prompt = f"This is an generated answer: {answer} to the question: {question}. I want you to look into this information: {combinedText} and see if there are any more information relevant to extract to answer the question. You are going to answer with a score of 1 to 10 where 1 is that all the information needs to be extracted and 10 is no extra context needs to be distracted. A 10 does not mean that the sentences match perfectly, but that all the relevant information from the provided document is included in the answer. Give a brief motivation to what is missing in the answer that could be provided from the origin source and what could be better. Do not reason about how the text could be written better, only judge if there are more information that needs to be extracted"
+    return utils.send_gpt4o_prompt(system_prompt, user_prompt, 200)
 
 def import_questions_from_csv(filepath):
     df = pd.read_csv(filepath)
@@ -88,8 +83,8 @@ def run_multiple_questions(questions):
             #sources = findUniqueSources(result['matches'])
             filtered_chunks, providedSources = askQuestion.filter_chunks(result['matches'], question)
             answer = askQuestion.generate_response(filtered_chunks, question)
-            #sourcesReview = checkSources(answer, question, providedSources)
-            sourcesReview = "very good"
+            sourcesReview = checkSources(answer, question, providedSources)
+            #sourcesReview = "very good"
             faithfulnessScore = evaluate_faithfulness(question, answer, filtered_chunks)
             answerRelevancy= evaluate_answer_relevancy(question, answer)
             results[question] = {'answer': answer, 'sourcesReview': sourcesReview, "sources": providedSources, "faithfulness": faithfulnessScore, "answer relevancy score": answerRelevancy.score, "answer relevancy feedback": answerRelevancy.feedback}

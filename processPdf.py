@@ -1,4 +1,4 @@
-import pineconeUtils
+import utils
 from pdfminer.high_level import extract_text
 import os
 import db
@@ -42,7 +42,7 @@ if __name__ == "__main__":
             sections, line_numbers = extract_paragraphs_with_pdfminer(filepath)
             description = generate_description(sections, filename)
             db.addData('data.db', filename, description)
-            embeddings = pineconeUtils.embed_sentences(sections)
+            embeddings = utils.embed_sentences(sections)
             index = 'test2'
             #id = int(pineconeUtils.send_to_pinecone(index, embeddings, sections, filename, id))
             for i in range(len(sections)):

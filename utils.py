@@ -4,17 +4,39 @@ from openai import OpenAI
 import os
 
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 pc = Pinecone(
     api_key=os.getenv("PINECONE_API_KEY"),
 )
 
+
+def send_gpt4o_prompt(system_prompt, user_prompt, max_tokens):
+    response = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        max_tokens=max_tokens
+        )
+    return response.choices[0].message.content
+
+def send_o3_prompt(system_prompt, user_prompt):
+    response = openai.chat.completions.create(
+        model="o3-mini",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+    )
+    return response.choices[0].message.content
+
 def embed_sentences(sentences):
     embeddings = []
     for sentence in sentences:
-        response = client.embeddings.create(
+        response = openai.embeddings.create(
             model="text-embedding-ada-002",
             input=sentence
         )

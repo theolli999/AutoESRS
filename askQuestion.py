@@ -9,6 +9,7 @@ from openai import OpenAI
 openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 import db
 import concurrent.futures
+import utils
 
 # Load API keys and configuration from environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -17,18 +18,6 @@ INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")  # Name of your existing Pinecone 
  
 # Initialize APIs
 pinecone = Pinecone(api_key=PINECONE_API_KEY)
-
-def rewriteQuestion(user_input):
-
-    response = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a text analyzer."},
-            {"role": "user", "content": f"Rewrite the question: {user_input}"}
-        ],
-        max_tokens=50
-    )
-    print("Rewritten question: ", response.choices[0].message.content)
 
 def ask_question(user_input):
     # Generate embedding for the user input
@@ -49,92 +38,41 @@ def fetch_chunk_from_pinecone(chunk_id):
     chunk = index.query(vector=query_response.vectors[str(chunk_id)].values, top_k=1, include_metadata=True)
     return chunk.matches[0]
 
-
-def checkChunk(chunk, user_input, direction, chunk_snippet, visited_chunks):
-    chunk_id = int(chunk['id'])
-    if chunk_id in visited_chunks:
-        return chunk_snippet
-    else:
-        visited_chunks.add(chunk_id)
-
-
-    response = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a text analyzer."},
-            {"role": "user", "content": f"This is a chunk extracted from a document: {chunk['metadata']['text']}. Does this chunk provide information relevant to understand the context better of the question: {user_input}? Only answer with a binary score of '1' or '0', remember to only answer with these values."}
-        ],
-        max_tokens=50
-    )
-    if response.choices[0].message.content == "1":
-        print("Found surrounding chunk:", chunk_id)
-        if direction == "upper":
-            next_chunk = fetch_chunk_from_pinecone(str(chunk_id - 1))
-            updated_snippet = next_chunk['metadata']['text'] + "\n\n" + chunk_snippet
-            chunk_snippet = updated_snippet
-            chunk_snippet = checkChunk(next_chunk, user_input, "upper", chunk_snippet, visited_chunks)
-        elif direction == "lower":
-            prev_chunk = fetch_chunk_from_pinecone(str(chunk_id + 1))
-            updated_snippet = chunk_snippet + "\n\n" + prev_chunk['metadata']['text']
-            chunk_snippet = updated_snippet
-            chunk_snippet = checkChunk(prev_chunk, user_input, "lower", chunk_snippet, visited_chunks)
-    else:
-        return chunk_snippet
-
-    return chunk_snippet
-
-def lookAroundChunk(chunk, user_input, visited_chunks):
-    chunk_id = int(chunk['id'])
-    chunk_snippet = chunk['metadata']['text']
-    chunk_snippet = checkChunk(fetch_chunk_from_pinecone(chunk_id + 1), user_input, "upper", chunk_snippet, visited_chunks)
-    chunk_snippet = checkChunk(fetch_chunk_from_pinecone(chunk_id - 1), user_input, "lower", chunk_snippet, visited_chunks)
-    return chunk_snippet
-
-
 def rewriteChunk(chunk):
     description = db.getDescription('descriptions.db', chunk['metadata']['source'])
-    newChunk = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a text analyzer."},
-            {"role": "user", "content": f"This a description of the document: {description}. Here is the chunk we want to situate within the whole document: {chunk['metadata']['text']}. This is the description of the source: {description}. Please give a short succinct context to situate this chunk within the overall document for the purposes of improving search retrieval of the chunk. Answer only with the succinct context and nothing else. "}
-        ],
-        max_tokens=200
-    )
-    return newChunk.choices[0].message.content
+
+    system_prompt="You are a text analyzer."
+    user_prompt=f"This a description of the document: {description}. Here is the chunk we want to situate within the whole document: {chunk['metadata']['text']}. This is the description of the source: {description}. Please give a short succinct context to situate this chunk within the overall document for the purposes of improving search retrieval of the chunk. Answer only with the succinct context and nothing else. "
+    return utils.send_gpt4o_prompt(system_prompt, user_prompt, 200)
 
 def checkRelevance(chunk, user_input, sources):
     newChunk = rewriteChunk(chunk) +": " + chunk['metadata']['text']
     chunk['metadata']['text'] = newChunk
-    response = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a text analyzer."},
-            {"role": "user", "content": f"This is a chunk extracted from a document: {chunk['metadata']['text']}. Is this chunk provide information relevant to the question: {user_input}? Only answer with a binary score of '1' or '0', remember to only answer with these values."}
-        ],
-        max_tokens=200
-    )
-    if(response.choices[0].message.content == "0"):
+    system_prompt="You are a text analyzer."
+    user_prompt=f"This is a chunk extracted from a document: {chunk['metadata']['text']}. Is this chunk provide information relevant to the question: {user_input}? Only answer with a binary score of '1' or '0', remember to only answer with these values."
+
+    if(utils.send_gpt4o_prompt(system_prompt, user_prompt, 50) == "0"):
         print("Chunk is not relevant")
     else:
         print("Chunk is relevant: " + chunk['metadata']['source'])
-        
         #print(chunk['metadata']['text'] + "\n\n")
         sources.append(chunk['metadata']['source']) 
-        #return lookAroundChunk(chunk, user_input, visited_chunks)
         return chunk
     return "", None
 
 def generate_response(context, user_input):
-    response = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. You should answer conscisely and not add extra information that is not avaliable in the context. If you do not know the answer, say that you don't have information on that topic."},
-            {"role": "user", "content": f"Here are the chunks extracted from the document that are relevant to the question: {user_input}. Please provide a an of the relevant information. Only answer the question based on this information: {context}"}
-        ],
-        max_tokens=200
+    system_prompt = (
+        "You are an assistant for question-answering tasks. "
+        "Use the following pieces of retrieved context to answer the question. "
+        "You should answer concisely and not add extra information that is not available in the context. "
+        "If you do not know the answer, say that you don't have information on that topic."
     )
-    return response.choices[0].message.content
+    user_prompt = (
+        f"Here are the chunks extracted from the document that are relevant to the question: {context}. "
+        f"Please provide an answer based on the relevant information. "
+        f"Only answer the question based on this information: {user_input}"
+    )
+    return utils.send_gpt4o_prompt(system_prompt, user_prompt, 200)
 
 def filter_chunks(chunks, user_input):
     context = ""
@@ -152,7 +90,6 @@ def filter_chunks(chunks, user_input):
                 sources.append(result['metadata']['source'])
     
     return context, list(set(sources))
-
 
 def main():
     print("Type your question (or 'exit' to quit):")
