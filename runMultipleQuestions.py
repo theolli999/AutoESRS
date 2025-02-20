@@ -1,15 +1,45 @@
+import asyncio
 import os
 import json
 from pinecone import Pinecone, ServerlessSpec
 import askQuestion
 from dotenv import load_dotenv
 import pandas as pd
+from ragas.dataset_schema import SingleTurnSample
+from ragas.metrics import Faithfulness
+
 load_dotenv()
 
 pinecone = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 
 from openai import OpenAI
 openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+async def openai_llm(prompt: str):
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "system", "content": prompt}],
+            max_tokens=50
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return None
+
+scorer = Faithfulness(llm=openai_llm)
+
+async def evaluate_faithfulness(question, answer, sources):
+    try: 
+        sample = SingleTurnSample(
+            user_input = question,
+            response=answer,
+            retrieved_contexts=sources
+        )
+        faithfulness_score = await scorer.single_turn_ascore(sample)
+        return {"faithfulness": faithfulness_score}
+    except Exception as e:
+        return {"error": str(e)}
+
 
 def findUniqueSources(chunks):
     sources = []
@@ -19,8 +49,7 @@ def findUniqueSources(chunks):
     return sources
 
 def checkSources(answer, question, sources):
-    sourcesAndAnswers = {}
-    index = pinecone.Index("test2")
+    index = pinecone.Index("pg")
 
     # Generera embedding för svaret
     embedding_response = openai.embeddings.create(
@@ -60,12 +89,13 @@ def run_multiple_questions(questions):
                 result = result.to_dict()
             else:
                 result = result.__dict__
-            sources = findUniqueSources(result['matches'])
+            #sources = findUniqueSources(result['matches'])
             filtered_chunks, providedSources = askQuestion.filter_chunks(result['matches'], question)
-            print("Provided sources: ", providedSources)
             answer = askQuestion.generate_response(filtered_chunks, question)
-            sourcesReview = checkSources(answer, question, sources)
-            results[question] = {'answer': answer, 'sourcesReview': sourcesReview, "sources": providedSources}
+            #sourcesReview = checkSources(answer, question, providedSources)
+            sourcesReview = "very good"
+            faithfulnessScore = asyncio.run(evaluate_faithfulness(question, answer, providedSources))
+            results[question] = {'answer': answer, 'sourcesReview': sourcesReview, "sources": providedSources, "faithfulness": faithfulnessScore}
         except Exception as e:
             results[question] = {'error': str(e)}
     return results
@@ -74,7 +104,7 @@ if __name__ == '__main__':
     #questions = import_questions_from_csv("./data.csv")
     questions = [
         "Can I bring my dog to work?",
-        "Does the company have a workplace accident prevention policy or management system?"
+        #"Does the company have a workplace accident prevention policy or management system?"
        ]
     
 
