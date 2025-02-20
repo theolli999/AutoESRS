@@ -7,6 +7,8 @@ function App() {
     const [question2, setQuestion2] = useState('');
     const [question3, setQuestion3] = useState('');
     const [loading, setLoading] = useState(false);
+    const [popupVisible, setPopupVisible] = useState(false);
+    const [popupData, setPopupData] = useState('');
 
     const handleClick = (e) => {
         e.preventDefault();
@@ -27,7 +29,8 @@ function App() {
                 const responseData = {
                     question,
                     answer: result.answer,
-                    sources: result.sources
+                    sources: result.sources,
+                    data: result.data
                 };
                 setData(prevData => [...prevData, responseData]);
             })
@@ -42,12 +45,24 @@ function App() {
             });
         });
     }
+
+    const handleInfoClick = (item) => {
+        // Instead of alert(), show custom popup with item.data
+        setPopupData(item.data);
+        setPopupVisible(true);
+    }
+
+    const handleClosePopup = () => {
+        setPopupVisible(false);
+        setPopupData('');
+    }
+
     return (
         <div className="App">
             <div className="container">
                 <header className="app-header">
                     <h1>AutoESRS</h1>
-                    <p>Make years work in one day</p>
+                    <p>Transforming the world</p>
                 </header>
                 <form className="question-form" onSubmit={handleClick}>
                     <div className="form-group">
@@ -82,10 +97,11 @@ function App() {
                     <ul>
                         {data.map((item, index) => (
                             <li key={index} className="result-item">
-                                <h3>{item.question}</h3>
-                                <p>
-                                    {item.answer}
-                                </p>
+                                <div className="question-header">
+                                    <h3>{item.question}</h3>
+                                    <div className="info" onClick={() => handleInfoClick(item)}>i</div>
+                                </div>
+                                <p>{item.answer}</p>
                                 <p className="sources">
                                     {item.sources ? item.sources.join(', ') : 'No sources available'}
                                 </p>
@@ -94,6 +110,14 @@ function App() {
                     </ul>
                 </section>
             </div>
+            {popupVisible && (
+                <div className="popup-overlay" onClick={handleClosePopup}>
+                    <div className="popup-content" onClick={(e) => e.stopPropagation()}>
+                        <button className="close-popup" onClick={handleClosePopup}>X</button>
+                        <div className="popup-data">{popupData}</div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

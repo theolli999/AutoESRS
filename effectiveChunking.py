@@ -19,9 +19,7 @@ def calculate_similarity(vec1, vec2):
     return np.dot(vec1, vec2) / (norm(vec1) * norm(vec2))
 
 def generate_description(sections, filename):
-    text = ""
-    for section in sections:
-        text += section + "\n"
+
     description = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -68,11 +66,11 @@ def embed_sentences(filepath, filename):
 
     if chunk:
         chunks.append(chunk)    
-    
-    description = generate_description(chunks, filename)
-    print("Description: ", description)
+    text = ""
+    for chunk in chunks:
+        text += chunk + "\n"
     # Ensure only one thread writes to the database at a time
-    db.addData('descriptions.db', filename, description)
+    db.addData('descriptions.db', filename, text)
     return chunks
 
 if __name__ == "__main__":
