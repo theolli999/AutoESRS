@@ -8,6 +8,7 @@ import pandas as pd
 from ragas.dataset_schema import SingleTurnSample
 from ragas.metrics import Faithfulness
 
+
 load_dotenv()
 
 pinecone = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
@@ -15,31 +16,27 @@ pinecone = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 from openai import OpenAI
 openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-async def openai_llm(prompt: str):
-    try:
-        response = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "system", "content": prompt}],
-            max_tokens=50
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        return None
+from llama_index.llms.openai import OpenAI  # använd den nya modulstrukturen
+from llama_index.core.evaluation import FaithfulnessEvaluator, AnswerRelevancyEvaluator
 
-scorer = Faithfulness(llm=openai_llm)
+llm = OpenAI(model="gpt-4o-mini", temperature=0.0)
 
-async def evaluate_faithfulness(question, answer, sources):
-    try: 
-        sample = SingleTurnSample(
-            user_input = question,
-            response=answer,
-            retrieved_contexts=sources
-        )
-        faithfulness_score = await scorer.single_turn_ascore(sample)
-        return {"faithfulness": faithfulness_score}
-    except Exception as e:
-        return {"error": str(e)}
+def evaluate_faithfulness(question, answer, context):
+    evaluator = FaithfulnessEvaluator(llm=llm)
+    eval_result = evaluator.evaluate(
+        query=question,
+        response=answer,
+        contexts=[context]
+    )
+    return eval_result.passing
 
+def evaluate_answer_relevancy(question, answer):
+    evaluator = AnswerRelevancyEvaluator(llm=llm)
+    eval_result = evaluator.evaluate(
+        query=question,
+        response=answer   
+    )
+    return eval_result
 
 def findUniqueSources(chunks):
     sources = []
@@ -93,8 +90,9 @@ def run_multiple_questions(questions):
             answer = askQuestion.generate_response(filtered_chunks, question)
             #sourcesReview = checkSources(answer, question, providedSources)
             sourcesReview = "very good"
-            faithfulnessScore = asyncio.run(evaluate_faithfulness(question, answer, providedSources))
-            results[question] = {'answer': answer, 'sourcesReview': sourcesReview, "sources": providedSources, "faithfulness": faithfulnessScore}
+            faithfulnessScore = evaluate_faithfulness(question, answer, filtered_chunks)
+            answerRelevancy= evaluate_answer_relevancy(question, answer)
+            results[question] = {'answer': answer, 'sourcesReview': sourcesReview, "sources": providedSources, "faithfulness": faithfulnessScore, "answer relevancy score": answerRelevancy.score, "answer relevancy feedback": answerRelevancy.feedback}
         except Exception as e:
             results[question] = {'error': str(e)}
     return results
@@ -102,7 +100,8 @@ def run_multiple_questions(questions):
 if __name__ == '__main__':
     #questions = import_questions_from_csv("./data.csv")
     questions = [
-        "Can I bring my dog to work?",
+        "What is Position Green's mission?"
+        #"Can I bring my dog to work?",
         #"Does the company have a workplace accident prevention policy or management system?"
        ]
     
@@ -111,6 +110,23 @@ if __name__ == '__main__':
     #print(questions)
     
     results = run_multiple_questions(questions)
+    # Format results i en tabell
+    data = []
+    for question, details in results.items():
+        faithfulness = details.get("faithfulness", "N/A")
+        correctness = details.get("correctness", "N/A")
+        answer = details.get("answer", "N/A")
+        data.append({
+            "Fråga": question,
+            "Faithfulness": faithfulness,
+            "Correctness": correctness,
+            "Svar": answer
+        })
+    
+    df = pd.DataFrame(data)
+    print(df.to_markdown(index=False))
+        
+
     print(json.dumps(results, indent=4))
 
     # for question, result in results.items():

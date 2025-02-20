@@ -129,7 +129,7 @@ def generate_response(context, user_input):
     response = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you do not know the answer, say that you don't have information on that topic."},
+            {"role": "system", "content": "You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. You should answer conscisely and not add extra information that is not avaliable in the context. If you do not know the answer, say that you don't have information on that topic."},
             {"role": "user", "content": f"Here are the chunks extracted from the document that are relevant to the question: {user_input}. Please provide a an of the relevant information. Only answer the question based on this information: {context}"}
         ],
         max_tokens=200
