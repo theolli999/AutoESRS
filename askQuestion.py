@@ -173,10 +173,7 @@ def main():
                 result = result.__dict__
             result, sources = filter_chunks(result['matches'], user_input)
             answer = generate_response(result, user_input)
-
             output = {"Question": user_input, "Answer": answer, "Source(s)": sources}
-
-            print("\n\nJSON Output:")
             print(json.dumps(output, indent=4))
 
             #print("\n\n Answer: ")

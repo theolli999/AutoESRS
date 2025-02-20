@@ -52,7 +52,7 @@ def import_questions_from_csv(filepath):
 
 def run_multiple_questions(questions):
     results = {}
-    for question in questions:
+    for idx, question in enumerate(questions):
         try:
             result = askQuestion.ask_question(question)
             if hasattr(result, "to_dict"):
@@ -73,18 +73,19 @@ if __name__ == '__main__':
     #questions = import_questions_from_csv("./data.csv")
     questions = [
         "Can I bring my dog to work?",
-        "Does the company have a workplace accident prevention policy or management system?", 
-        "Choose the areas that are covered in the policy for elimination of discrimination and diversity:", 
-        "Does the company have policies that explicitly address trafficking in human right beings, forced or compulsory labour and child labour?",
-        "Does the company have policies with regard to its own workers, that are aligned with internationally recognised standards including UN Guiding Principles on Business and Human Rights?"]
+        "Does the company have a workplace accident prevention policy or management system?"
+       ]
     
 
-    questions = ["Does the company have a transition plan?"]
-    print(questions)
+    #questions = ["Does the company have a transition plan?"]
+    #print(questions)
+    
     results = run_multiple_questions(questions)
-    for question, result in results.items():
-        if 'error' in result:
-            print(f"Question: {question}\nError: {result['error']}\n")
-        else:
-            print(f"Question: {question}\nAnswer: {result['answer']}\n")
-            #print("Sources Review: ", result['sourcesReview'])
+    print(json.dumps(results, indent=4))
+
+    # for question, result in results.items():
+    #     if 'error' in result:
+    #         print(f"Question: {question}\nError: {result['error']}\n")
+    #     else:
+    #         print(f"Question: {question}\nAnswer: {result['answer']}\n")
+    #         #print("Sources Review: ", result['sourcesReview'])
