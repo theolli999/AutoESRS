@@ -40,7 +40,7 @@ if __name__ == "__main__":
         if filename.endswith('.pdf'):
             filepath = os.path.join(directory, filename)
             sections, line_numbers = extract_paragraphs_with_pdfminer(filepath)
-            description = generateDescription(sections, filename)
+            description = generate_description(sections, filename)
             db.addData('data.db', filename, description)
             embeddings = pineconeUtils.embed_sentences(sections)
             index = 'test2'

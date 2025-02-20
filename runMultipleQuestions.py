@@ -19,7 +19,6 @@ def findUniqueSources(chunks):
     return sources
 
 def checkSources(answer, question, sources):
-    sourcesAndAnswers = {}
     index = pinecone.Index("test2")
 
     # Generera embedding för svaret
