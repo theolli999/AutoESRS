@@ -110,21 +110,21 @@ if __name__ == '__main__':
     #print(questions)
     
     results = run_multiple_questions(questions)
-    # Format results i en tabell
-    data = []
-    for question, details in results.items():
-        faithfulness = details.get("faithfulness", "N/A")
-        correctness = details.get("correctness", "N/A")
-        answer = details.get("answer", "N/A")
-        data.append({
-            "Fråga": question,
-            "Faithfulness": faithfulness,
-            "Correctness": correctness,
-            "Svar": answer
-        })
+    # # Format results i en tabell
+    # data = []
+    # for question, details in results.items():
+    #     faithfulness = details.get("faithfulness", "N/A")
+    #     correctness = details.get("correctness", "N/A")
+    #     answer = details.get("answer", "N/A")
+    #     data.append({
+    #         "Fråga": question,
+    #         "Faithfulness": faithfulness,
+    #         "Correctness": correctness,
+    #         "Svar": answer
+    #     })
     
-    df = pd.DataFrame(data)
-    print(df.to_markdown(index=False))
+    # df = pd.DataFrame(data)
+    # print(df.to_markdown(index=False))
         
 
     print(json.dumps(results, indent=4))
