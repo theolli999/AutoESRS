@@ -31,7 +31,7 @@ def send_o3_prompt(system_prompt, user_prompt):
             {"role": "user", "content": user_prompt}
         ]
     )
-    return response.choices[0].message.content
+    return response
 
 def embed_sentences(sentences):
     embeddings = []
